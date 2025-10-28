@@ -1,0 +1,25 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+.fi-section-header{
+    @apply bg-gray-100;
+    @apply rounded-t-xl;
+}
+
+.fi-section{
+    @apply overflow-hidden;
+}
+
+.fi-ta-record-actions {
+    @apply flex flex-col gap-1; /* dari flex-row menjadi kolom */
+}
+
+.fi-page-header-main-ctn {
+    row-gap: 8px !important;
+}
+
+/* .fi-sidebar-nav{
+    @apply bg-white;
+} */
