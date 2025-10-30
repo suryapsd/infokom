@@ -7,6 +7,7 @@ use Livewire\Component;
 use App\Models\Penilaian;
 use Filament\Tables\Table;
 use Illuminate\Support\Str;
+use Filament\Actions\Action;
 use Filament\Schemas\Schema;
 use App\Models\HasilPenilaian;
 use Filament\Actions\EditAction;
@@ -95,7 +96,10 @@ class PenetapanSchema extends Component implements HasTable, HasForms, HasAction
                 ->label('Upload File')
                 ->disk('public')
                 ->directory('file')
-                ->preserveFilenames()
+                ->acceptedFileTypes(['application/pdf'])
+                ->getUploadedFileNameForStorageUsing(function (TemporaryUploadedFile $file): string {
+                    return  uniqid() . '-' . $file->getClientOriginalName();
+                })
                 ->pdfPreviewHeight(400)
                 ->pdfDisplayPage(1)
                 ->pdfToolbar(true)
@@ -130,51 +134,78 @@ class PenetapanSchema extends Component implements HasTable, HasForms, HasAction
                 ActionGroup::make([
                     MediaAction::make('file')
                         ->label('Tampilkan File')
-                        ->icon('heroicon-o-document-magnifying-glass')
-                        ->color('warning')
+                        ->icon(Heroicon::DocumentMagnifyingGlass)
+                        ->color('gray')
                         ->media(
                             fn($record) =>
                             Str::startsWith($record->link_file, ['http://', 'https://'])
                                 ? $record->link_file
                                 : asset('storage/' . $record->link_file)
                         ),
-                    ViewAction::make()
-                        ->label('Hasil Penilaian')
-                        ->schema([
-                            Tabs::make('Tabs')
-                                ->tabs([
-                                    Tab::make('Isi Dokumen')
-                                        ->icon(Heroicon::OutlinedDocument)
-                                        ->schema([
-                                            TextEntry::make('isi')
-                                                ->html()
-                                                ->formatStateUsing(fn($state) => nl2br(e($state)))
-                                                ->columnSpanFull(),
-                                        ]),
-                                    Tab::make('Hasil Analisa Dokumen')
-                                        ->icon(Heroicon::OutlinedDocumentCheck)
-                                        ->schema([
-                                            TextEntry::make('hasil')
-                                                ->html()
-                                                ->formatStateUsing(fn($state) => nl2br(e($state)))
-                                                ->columnSpanFull(),
-                                        ]),
-                                ]),
-                        ]),
+                    Action::make('Analisa')
+                        ->requiresConfirmation()
+                        ->icon(Heroicon::CloudArrowUp)
+                        ->color('warning')
+                        ->action(function (Penilaian $record) {
+                            $filePath = Storage::disk('public')->path($record->link_file);
+                            if (!file_exists($filePath)) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('Dokumen tidak ditemukan')
+                                    ->body('Silakan upload ulang dokumen terlebih dahulu.')
+                                    ->send();
+                                return;
+                            }
+
+                            $analisaDokumen = $this->postAnalisaDokumen($record->link_file);
+                            $record->update([
+                                'isi' => $analisaDokumen['isi'] ?? null,
+                                'hasil' => $analisaDokumen['hasil'] ?? null,
+                            ]);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Berhasil melakukan analisa')
+                                ->send();
+
+                            $this->replaceMountedAction('hasil', [
+                                'record' => $record->refresh(),
+                            ]);
+                        }),
+                    $this->hasilAction()
+                        ->visible(fn($record) => $record->hasil),
                     EditAction::make()
                         ->label('Ubah Data')
                         ->schema(static::getPenetapanForm())
-                        ->mutateDataUsing(function (array $data): array {
-                            $analisaDokumen = $this->postAnalisaDokumen($data);
-                            $data['isi'] = $analisaDokumen['isi'] ?? null;
-                            $data['hasil'] = $analisaDokumen['hasil'] ?? null;
+                        ->mutateDataUsing(function (array $data, Penilaian $record): array {
+                            if (!empty($data['link_file']) && $record->link_file !== $data['link_file']) {
+                                $oldFile = $record->link_file;
+
+                                if (Storage::disk('public')->exists($oldFile)) {
+                                    Storage::disk('public')->delete($oldFile);
+                                }
+                            }
+                            // $analisaDokumen = $this->postAnalisaDokumen($data['link_file']);
+                            // $data['isi'] = $analisaDokumen['isi'] ?? null;
+                            // $data['hasil'] = $analisaDokumen['hasil'] ?? null;
                             return $data;
                         }),
                     DeleteAction::make()
-                        ->label('Hapus'),
+                        ->label('Hapus')
+                        ->before(function (Penilaian $record) {
+                            if ($record->link_file) {
+                                $path = Str::startsWith($record->link_file, 'storage/')
+                                    ? str_replace('storage/', '', $record->link_file)
+                                    : $record->link_file;
+
+                                if (Storage::disk('public')->exists($path)) {
+                                    Storage::disk('public')->delete($path);
+                                }
+                            }
+                        }),
                 ])
                     ->label('Actions')
-                    ->icon('heroicon-m-ellipsis-vertical')
+                    ->icon(Heroicon::OutlinedEllipsisVertical)
                     ->size(Size::Small)
                     ->color('gray')
                     ->button()
@@ -183,15 +214,46 @@ class PenetapanSchema extends Component implements HasTable, HasForms, HasAction
             ->toolbarActions([]);
     }
 
+    public function hasilAction(): Action
+    {
+        return Action::make('hasil')
+            ->label('Hasil Penilaian')
+            ->icon(Heroicon::DocumentCheck)
+            ->color('success')
+            ->modalHeading('Hasil Analisa Dokumen')
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Tutup')
+            ->record(fn($arguments) => $arguments['record'] ?? null)
+            ->schema([
+                Tabs::make('Tabs')
+                    ->tabs([
+                        Tab::make('Isi Dokumen')
+                            ->icon(Heroicon::OutlinedDocument)
+                            ->schema([
+                                TextEntry::make('isi')
+                                    ->html()
+                                    ->formatStateUsing(fn($state) => nl2br(e($state)))
+                                    ->columnSpanFull(),
+                            ]),
+                        Tab::make('Hasil Analisa Dokumen')
+                            ->icon(Heroicon::OutlinedDocumentCheck)
+                            ->schema([
+                                TextEntry::make('hasil')
+                                    ->html()
+                                    ->formatStateUsing(fn($state) => nl2br(e($state)))
+                                    ->columnSpanFull(),
+                            ]),
+                    ]),
+            ]);
+    }
+
     public function submit()
     {
         try {
             $data = $this->form->getState();
-
-            $analisaDokumen = $this->postAnalisaDokumen($data);
-
-            $data['isi'] = $analisaDokumen['isi'] ?? null;
-            $data['hasil'] = $analisaDokumen['hasil'] ?? null;
+            // $analisaDokumen = $this->postAnalisaDokumen($data['link_file']);
+            // $data['isi'] = $analisaDokumen['isi'] ?? null;
+            // $data['hasil'] = $analisaDokumen['hasil'] ?? null;
             $data['status_aktif'] = 1;
 
             Penilaian::create($data);
@@ -213,11 +275,11 @@ class PenetapanSchema extends Component implements HasTable, HasForms, HasAction
         }
     }
 
-    public function postAnalisaDokumen($penilaian)
+    public function postAnalisaDokumen($dokumen)
     {
-        $path = Str::contains($penilaian['link_file'], 'storage/')
-            ? str_replace('storage/', '', $penilaian['link_file'])
-            : $penilaian['link_file'];
+        $path = Str::contains($dokumen, 'storage/')
+            ? str_replace('storage/', '', $dokumen)
+            : $dokumen;
 
         $filePath = Storage::disk('public')->path($path);
 
