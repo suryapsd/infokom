@@ -28,7 +28,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             // ->path('admin')
-            ->login(null)
+            ->login()
             ->colors([
                 'primary' => Color::Blue,
             ])
@@ -56,7 +56,7 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
-                // Authenticate::class,
+                Authenticate::class,
             ])
             ->viteTheme('resources/css/filament/admin/theme.css');
     }
