@@ -18,6 +18,7 @@ use Filament\Actions\DeleteAction;
 use Illuminate\Support\Facades\Log;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Http;
+use App\Models\SupersubKriteriaDummy;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Tabs;
@@ -289,7 +290,7 @@ class PenetapanSchema extends Component implements HasTable, HasForms, HasAction
 
         $response = Http::timeout(30)
             ->attach('dokumen', fopen($filePath, 'r'), basename($filePath))
-            ->post('http://148.230.101.102:8081/analisa/dokumen', [
+            ->post('http://148.230.101.102:8081/analisa/per-dokumen', [
                 'kriteria'  => 'Ketersediaan kebijakan, standar, dan indikator terkait sarana dan prasarana penelitian, pembiayaan penelitian, peta jalan penelitian dan pengembangan DTPR di bidang penelitian.',
                 'indikator' => 'Tersedianya kebijakan, standar dan indikator terkait sarana dan prasarana penelitian, pembiayaan penelitian, peta jalan penelitian dan pengembangan DTPR di bidang penelitian, disertai bukti- bukti yang sahih tetapi kurang lengkap',
             ]);

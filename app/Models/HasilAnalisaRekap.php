@@ -5,11 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class SupersubKriteriaIndikator extends Model
+class HasilAnalisaRekap extends Model
 {
     use HasFactory;
 
-    protected $table = 'supersub_kriteria_indikator';
+    protected $table = 'hasil_analisa_rekap';
     protected $guarded = ['id'];
     public $timestamps = false;
 }
