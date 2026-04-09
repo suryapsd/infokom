@@ -299,7 +299,8 @@ class PenetapanSchema extends Component implements HasTable, HasForms, HasAction
             $apiResponse = json_decode($response->body(), true);
             return [
                 'isi' => $apiResponse[1] ?? null,
-                'hasil' => $apiResponse[0][0]['message']['content'] ?? null,
+                // 'hasil' => $apiResponse[0][0]['message']['content'] ?? null,
+                'hasil' => $apiResponse[0] ?? null,
             ];
         }
 
